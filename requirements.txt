@@ -1,1 +1,2 @@
 gvm-tools==21.1.0
+requests

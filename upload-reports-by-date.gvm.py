@@ -13,7 +13,6 @@ from shutil import which
 
 from gvm.protocols.gmp import Gmp
 from lxml.etree import Element
-from terminaltables import AsciiTable
 
 
 def error(*args):
@@ -54,14 +53,14 @@ def get_reports_xml(gmp: Gmp, from_date: date, to_date: date) -> Element:
     return gmp.get_reports(filter_string=report_filter)
 
 
-def save_csv(gmp: Gmp, reports_xml: Element) -> None:
+def save_csv(gmp: Gmp, reports_xml: Element) -> []:
     report_list = reports_xml.xpath("report")
 
     format_id = None
     formats = gmp.get_report_formats()
-    for format in formats.xpath("report_format"):
-        format_id = format.xpath("@id")[0]
-        name = format.xpath("name/text()")[0]
+    for f in formats.xpath("report_format"):
+        format_id = f.xpath("@id")[0]
+        name = f.xpath("name/text()")[0]
         if name == "CSV Results":
             break
 
@@ -71,7 +70,6 @@ def save_csv(gmp: Gmp, reports_xml: Element) -> None:
     reports = []
     for report in report_list:
         report_id = report.xpath("report/@id")[0]
-        name = report.xpath("name/text()")[0]
         task = report.xpath("task/name/text()")[0].strip()
 
         report_filter = (
@@ -114,16 +112,16 @@ def create_ad_hoc_engagement(dd_base_url, dd_auth_token, product_id):
         "Content-Type": "application/json",
     }
 
-    date = datetime.datetime.now()
-    engagement_title="AdHoc Import from OpenVAS - " + date.strftime("%a, %d %b %Y %H:%M:%S")
+    d = datetime.datetime.now()
+    engagement_title = "AdHoc Import from OpenVAS - " + d.strftime("%a, %d %b %Y %H:%M:%S")
     data = json.dumps({
       "tags": [],
       "name": engagement_title,
       "description": None,
       "version": "",
       "first_contacted": None,
-      "target_start": date.strftime("%F"),
-      "target_end": date.strftime("%F"),
+      "target_start": d.strftime("%F"),
+      "target_end": d.strftime("%F"),
       "reason": None,
       "active": True,
       "tracker": None,
@@ -157,29 +155,29 @@ def create_ad_hoc_engagement(dd_base_url, dd_auth_token, product_id):
 
 
 def upload_scan_findings(dd_base_url, dd_auth_token, engagement_id, report_file_path):
-    date = datetime.datetime.now()
+    d = datetime.datetime.now()
     process = subprocess.Popen([
         "curl", "-sS", "-X", "POST", dd_base_url + "/api/v2/import-scan/",
         "-H",  "Authorization: Token " + dd_auth_token,
         "-H",  "Content-Type: multipart/form-data",
-        "-F",  "scan_date="+date.strftime("%F"),
+        "-F",  "scan_date=" + d.strftime("%F"),
         "-F",  "minimum_severity=Info",
         "-F",  "active=true",
         "-F",  "verified=true",
         "-F",  "scan_type=OpenVAS CSV",
-        "-F",  "file=@"+report_file_path+".csv",
-        "-F",  "engagement="+str(engagement_id),
+        "-F",  "file=@" + report_file_path+".csv",
+        "-F",  "engagement=" + str(engagement_id),
         "-F",  "close_old_findings=false",
         "-F",  "push_to_jira=false"
     ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
-    error = stderr.decode("utf-8").strip()
+    err = stderr.decode("utf-8").strip()
     output = stdout.decode("utf-8").strip()
     if output != "":
         js_out = json.loads(output)
         return js_out["test"]
     else:
-        error("Error: failure while uploading scan results to Defect Dojo\n", error)
+        error("Error: failure while uploading scan results to Defect Dojo\n", err)
 
 
 def parse_json(json_input):
@@ -235,13 +233,13 @@ def main(gmp: Gmp, args: Namespace) -> None:
             report_path = report[0]
             product_id = find_product_by_project_name(dd_base_url, dd_auth_token, project_name)
             print("Fetching for product matching project name:", project_name)
-            if product_id != None:
+            if product_id is not None:
                 print("Found product (ID: " + str(product_id) + ")")
                 engagement_id = create_ad_hoc_engagement(dd_base_url, dd_auth_token, product_id)
-                if engagement_id != None:
+                if engagement_id is not None:
                     print("Created new AdHoc import engagement (ID: " + str(engagement_id) + ")")
                     test_id = upload_scan_findings(dd_base_url, dd_auth_token, engagement_id, report_path)
-                    if test_id != None:
+                    if test_id is not None:
                         print("Imported findigs to test (ID: " + str(test_id) + ")")
             os.remove("%s.csv" % report_path)
     else:
